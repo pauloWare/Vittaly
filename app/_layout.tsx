@@ -25,6 +25,7 @@ function LayoutInterno() {
         }}
       >
         <Stack.Screen name="index" />
+        <Stack.Screen name="ativar-conta" />
         <Stack.Screen name="aluno/inicio" />
         <Stack.Screen name="aluno/presenca" />
         <Stack.Screen name="aluno/frequencia" />

@@ -110,7 +110,9 @@ export default function LoginScreen() {
 
       // O destino vem do cargo devolvido pela API — o app não o escolhe.
       const destino =
-        data.cargo === "ALUNO" ? rotaDoAluno(data.cargo) : rotaDoCargo(data.cargo);
+        data.cargo === "ALUNO"
+          ? rotaDoAluno(data.cargo)
+          : rotaDoCargo(data.cargo);
 
       if (destino === "/") {
         // Cargo legítimo, porém sem área correspondente neste aplicativo
@@ -126,7 +128,11 @@ export default function LoginScreen() {
       }
 
       await salvarSessao(
-        { cargo: data.cargo, usuario: data.usuario ?? null, aluno: data.aluno ?? null },
+        {
+          cargo: data.cargo,
+          usuario: data.usuario ?? null,
+          aluno: data.aluno ?? null,
+        },
         data.token,
       );
       redefinirSessaoExpirada();
@@ -175,7 +181,7 @@ export default function LoginScreen() {
             <Text style={styles.logoText}>
               VITALLY<Text style={styles.logoTextAccent}>EXERCISE</Text>
             </Text>
-            <Text style={styles.subtitle}>Gestão da academia</Text>
+            <Text style={styles.subtitle}>Bem vindo</Text>
           </View>
 
           {/* Formulário único: e-mail e senha para todos os perfis */}
@@ -244,6 +250,18 @@ export default function LoginScreen() {
               ) : (
                 <Text style={styles.buttonText}>ENTRAR</Text>
               )}
+            </TouchableOpacity>
+
+            {/* Ativação da conta pelo próprio aluno (código da recepção). */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={[styles.button, styles.buttonSecundario]}
+              onPress={() => router.push("/ativar-conta" as never)}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.buttonText, styles.buttonTextSecundario]}>
+                ATIVAR MINHA CONTA
+              </Text>
             </TouchableOpacity>
           </View>
 

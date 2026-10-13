@@ -51,27 +51,33 @@ export type PerfilAluno = {
   /** CPF já mascarado pelo backend (ex.: ***.***-01). */
   cpfMascarado?: string | null;
   dataNascimento?: string | null;
+  sexo?: string | null;
   plano?: string | null;
   situacao?: string | null;
   /** Foto em Base64 (data URL) ou ausente quando o aluno não tem foto. */
   fotoPerfilBase64?: string | null;
+  cep?: string | null;
+  logradouro?: string | null;
+  numero?: string | null;
+  complemento?: string | null;
+  bairro?: string | null;
+  contatoEmergenciaNome?: string | null;
+  contatoEmergenciaTelefone?: string | null;
 };
 
-/** Campos que o aluno pode editar (o resto é bloqueado no backend). */
+/** Campos editáveis direto pelo aluno (nome/CPF/nascimento/sexo são protegidos). */
 export type DadosEdicaoPerfil = {
-  nome: string;
   email: string;
-  telefone: string;
-  /**
-   * CPF com ou sem máscara; `null`/vazio mantém o CPF atual no backend
-   * (a ausência do campo nunca apaga dado já gravado).
-   */
-  cpf?: string | null;
-  /**
-   * Data de nascimento em ISO (`AAAA-MM-DD`); `null`/vazio mantém a data
-   * atual. O backend recusa formato diferente e data futura.
-   */
-  dataNascimento?: string | null;
+  telefone?: string | null;
+  cep?: string | null;
+  logradouro?: string | null;
+  /** Apelido aceito também pelo backend. */
+  rua?: string | null;
+  numero?: string | null;
+  complemento?: string | null;
+  bairro?: string | null;
+  contatoEmergenciaNome?: string | null;
+  contatoEmergenciaTelefone?: string | null;
 };
 
 /**
@@ -90,22 +96,28 @@ export function buscarPerfil(): Promise<PerfilAluno> {
 }
 
 /**
- * Salva os dados pessoais; devolve o perfil já persistido.
+ * Salva os campos editáveis; devolve o perfil já persistido.
  *
- * Envia apenas os campos pessoais (nome, e-mail, telefone, CPF e data de
- * nascimento). O backend identifica o aluno pelo token — nunca pelo corpo — e
- * valida tudo de novo (incluindo duplicidade de CPF/e-mail e data futura).
+ * Envia apenas contato, endereço e emergência (nome, CPF, nascimento e sexo
+ * são protegidos e nem chegam aqui). O backend identifica o aluno pelo token —
+ * nunca pelo corpo — e valida tudo de novo (incluindo duplicidade de e-mail,
+ * formato de CEP e limites de tamanho).
  */
 export function salvarPerfil(dados: DadosEdicaoPerfil): Promise<PerfilAluno> {
   return apiFetch<PerfilAluno>('/portal/perfil', {
     method: 'PUT',
     body: {
-      nome: dados.nome,
       email: dados.email,
-      telefone: dados.telefone,
+      // String vazia limpa o campo no servidor; null/ausente manteria o valor.
+      telefone: dados.telefone ?? '',
       // Normalização defensiva antes de enviar: o backend normaliza de novo.
-      cpf: dados.cpf ? dados.cpf.replace(/\D/g, '') : null,
-      dataNascimento: dados.dataNascimento || null,
+      cep: (dados.cep ?? '').replace(/\D/g, ''),
+      logradouro: dados.logradouro ?? '',
+      numero: dados.numero ?? '',
+      complemento: dados.complemento ?? '',
+      bairro: dados.bairro ?? '',
+      contatoEmergenciaNome: dados.contatoEmergenciaNome ?? '',
+      contatoEmergenciaTelefone: dados.contatoEmergenciaTelefone ?? '',
     },
   });
 }
@@ -120,6 +132,30 @@ export function salvarFoto(fotoBase64: string): Promise<PerfilAluno> {
     body: { fotoBase64 },
   });
 }
+
+/**
+ * Ativação da conta mobile pelo próprio aluno ("Ativar minha conta").
+ *
+ * POST /api/portal/ativar-conta (público): e-mail + código de uso único +
+ * senha escolhida pelo aluno. Não devolve sessão/token — após o sucesso o
+ * app encaminha ao login normal.
+ */
+export type DadosAtivacao = {
+  email: string;
+  codigo: string;
+  senha: string;
+  confirmarSenha: string;
+};
+
+export function ativarConta(dados: DadosAtivacao): Promise<{ mensagem: string }> {
+  return apiFetch<{ mensagem: string }>('/portal/ativar-conta', {
+    method: 'POST',
+    body: dados,
+    auth: false,
+    sessao: false,
+  });
+}
+
 
 /** Valida a foto escolhida antes de enviar (formato e tamanho). */
 export function validarFoto(fotoBase64: string | null | undefined): string | null {

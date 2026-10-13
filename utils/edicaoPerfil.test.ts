@@ -2,10 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
-  dataNascimentoNoFuturo,
-  dataNascimentoParaIso,
-  isoParaMascaraData,
-  mascaraDataNascimento,
+  mascaraCep,
   mascaraTelefone,
   validarDadosPerfil,
 } from './edicaoPerfil.ts';
@@ -43,106 +40,47 @@ test('máscara de telefone ignora caracteres não numéricos e limita a 11 dígi
   assert.equal(mascaraTelefone('119876543219999'), '(11) 98765-4321');
 });
 
-// ─── mascaraDataNascimento ──────────────────────────────────────────────────
+// ─── mascaraCep ─────────────────────────────────────────────────────────────
 
-test('máscara de nascimento formata progressivamente', () => {
-  assert.equal(mascaraDataNascimento(''), '');
-  assert.equal(mascaraDataNascimento('2'), '2');
-  assert.equal(mascaraDataNascimento('25'), '25');
-  assert.equal(mascaraDataNascimento('251'), '25/1');
-  assert.equal(mascaraDataNascimento('251219'), '25/12/19');
-  assert.equal(mascaraDataNascimento('25121990'), '25/12/1990');
+test('máscara de CEP formata progressivamente em 00000-000', () => {
+  assert.equal(mascaraCep(''), '');
+  assert.equal(mascaraCep('0'), '0');
+  assert.equal(mascaraCep('01310'), '01310');
+  assert.equal(mascaraCep('013101'), '01310-1');
+  assert.equal(mascaraCep('01310100'), '01310-100');
 });
 
-test('máscara de nascimento ignora caracteres não numéricos e limita a 8 dígitos', () => {
-  assert.equal(mascaraDataNascimento('25/12/1990'), '25/12/1990');
-  assert.equal(mascaraDataNascimento('abc25x12y1990'), '25/12/1990');
-  assert.equal(mascaraDataNascimento('251219901234'), '25/12/1990');
-});
-
-// ─── dataNascimentoParaIso ──────────────────────────────────────────────────
-
-test('converte dd/mm/aaaa para o ISO esperado pela API', () => {
-  assert.equal(dataNascimentoParaIso('25/12/1990'), '1990-12-25');
-  assert.equal(dataNascimentoParaIso('01/01/2000'), '2000-01-01');
-  assert.equal(dataNascimentoParaIso('29/02/2000'), '2000-02-29'); // bissexto
-});
-
-test('rejeita data incompleta ou fora do formato', () => {
-  assert.equal(dataNascimentoParaIso(''), null);
-  assert.equal(dataNascimentoParaIso('25/12'), null);
-  assert.equal(dataNascimentoParaIso('1990-12-25'), null);
-  assert.equal(dataNascimentoParaIso('25-12-1990'), null);
-  assert.equal(dataNascimentoParaIso('25/12/199'), null);
-});
-
-test('rejeita data inexistente no calendário', () => {
-  assert.equal(dataNascimentoParaIso('31/02/1990'), null);
-  assert.equal(dataNascimentoParaIso('32/01/1990'), null);
-  assert.equal(dataNascimentoParaIso('00/05/1990'), null);
-  assert.equal(dataNascimentoParaIso('15/13/1990'), null);
-  assert.equal(dataNascimentoParaIso('29/02/1990'), null); // 1990 não é bissexto
-});
-
-// ─── isoParaMascaraData ─────────────────────────────────────────────────────
-
-test('converte o ISO do backend para dd/mm/aaaa exibido', () => {
-  assert.equal(isoParaMascaraData('1990-12-25'), '25/12/1990');
-  assert.equal(isoParaMascaraData('2000-01-01'), '01/01/2000');
-});
-
-test('devolve vazio para data ausente ou fora do formato', () => {
-  assert.equal(isoParaMascaraData(null), '');
-  assert.equal(isoParaMascaraData(undefined), '');
-  assert.equal(isoParaMascaraData(''), '');
-  assert.equal(isoParaMascaraData('25/12/1990'), '');
-});
-
-
-// ─── dataNascimentoNoFuturo ─────────────────────────────────────────────────
-
-test('data futura é detectada; passado e hoje não são', () => {
-  const hoje = new Date();
-  const hojeIso = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(
-    hoje.getDate(),
-  ).padStart(2, '0')}`;
-
-  const amanha = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + 1);
-  const amanhaIso = `${amanha.getFullYear()}-${String(amanha.getMonth() + 1).padStart(2, '0')}-${String(
-    amanha.getDate(),
-  ).padStart(2, '0')}`;
-
-  assert.equal(dataNascimentoNoFuturo('1990-12-25'), false);
-  assert.equal(dataNascimentoNoFuturo(hojeIso), false);
-  assert.equal(dataNascimentoNoFuturo(amanhaIso), true);
-  assert.equal(dataNascimentoNoFuturo('2999-01-01'), true);
+test('máscara de CEP é idempotente e ignora caracteres não numéricos', () => {
+  assert.equal(mascaraCep('01310-100'), '01310-100');
+  assert.equal(mascaraCep(mascaraCep('01310100')), '01310-100');
+  assert.equal(mascaraCep('abc01310100'), '01310-100');
+  assert.equal(mascaraCep('013101009999'), '01310-100');
 });
 
 // ─── validarDadosPerfil ─────────────────────────────────────────────────────
 
 const VALIDO = {
-  nome: 'Aluno Teste',
   email: 'aluno@teste.com',
-  telefone: '11987654321',
-  cpf: '529.982.247-25',
-  dataNascimento: '25/12/1990',
+  telefone: '(11) 98765-4321',
+  cep: '01310-100',
+  logradouro: 'Av. Paulista',
+  numero: '1000',
+  complemento: 'Apto 111',
+  bairro: 'Bela Vista',
+  contatoEmergenciaNome: 'Mae do Aluno',
+  contatoEmergenciaTelefone: '(11) 91111-2222',
 };
 
 test('aceita um preenchimento válido completo', () => {
   assert.deepEqual(validarDadosPerfil(VALIDO), {});
 });
 
-test('nome vazio ou só espaços é rejeitado', () => {
-  assert.equal(validarDadosPerfil({ ...VALIDO, nome: '' }).nome, 'Informe o nome.');
-  assert.equal(validarDadosPerfil({ ...VALIDO, nome: '   ' }).nome, 'Informe o nome.');
-  assert.equal(
-    validarDadosPerfil({ ...VALIDO, nome: 'x'.repeat(151) }).nome,
-    'O nome deve ter no máximo 150 caracteres.'
-  );
-});
-
-test('e-mail vazio ou com formato inválido é rejeitado', () => {
+test('e-mail vazio, longo ou com formato inválido é rejeitado', () => {
   assert.equal(validarDadosPerfil({ ...VALIDO, email: '' }).email, 'Informe o e-mail.');
+  assert.equal(
+    validarDadosPerfil({ ...VALIDO, email: 'x'.repeat(146) + '@a.co' }).email,
+    'O e-mail deve ter no máximo 150 caracteres.'
+  );
   assert.equal(
     validarDadosPerfil({ ...VALIDO, email: 'sem-arroba' }).email,
     'Informe um e-mail válido.'
@@ -153,62 +91,105 @@ test('e-mail vazio ou com formato inválido é rejeitado', () => {
   );
 });
 
-test('aceita CPF com máscara e sem máscara quando válido', () => {
-  assert.deepEqual(validarDadosPerfil({ ...VALIDO, cpf: '529.982.247-25' }), {});
-  assert.deepEqual(validarDadosPerfil({ ...VALIDO, cpf: '52998224725' }), {});
-});
-
-test('rejeita CPF incompleto ou com dígitos verificadores errados', () => {
+test('CEP vazio é aceito (limpa); com menos de 8 dígitos é rejeitado', () => {
+  assert.deepEqual(validarDadosPerfil({ ...VALIDO, cep: '' }), {});
   assert.equal(
-    validarDadosPerfil({ ...VALIDO, cpf: '529.982.247' }).cpf,
-    'Informe um CPF com 11 dígitos.'
+    validarDadosPerfil({ ...VALIDO, cep: '0131-100' }).cep,
+    'Informe um CEP com 8 dígitos.'
   );
   assert.equal(
-    validarDadosPerfil({ ...VALIDO, cpf: '111.111.111-11' }).cpf,
-    'CPF inválido. Confira os números.'
-  );
-  assert.equal(
-    validarDadosPerfil({ ...VALIDO, cpf: '123.456.789-00' }).cpf,
-    'CPF inválido. Confira os números.'
+    validarDadosPerfil({ ...VALIDO, cep: '123' }).cep,
+    'Informe um CEP com 8 dígitos.'
   );
 });
 
-test('CPF vazio é aceito: significa manter o atual', () => {
-  assert.deepEqual(validarDadosPerfil({ ...VALIDO, cpf: '' }), {});
-  assert.deepEqual(validarDadosPerfil({ ...VALIDO, cpf: '   ' }), {});
-});
-
-test('data de nascimento válida é aceita e vazia mantém a atual', () => {
-  assert.deepEqual(validarDadosPerfil({ ...VALIDO, dataNascimento: '01/01/2000' }), {});
-  assert.deepEqual(validarDadosPerfil({ ...VALIDO, dataNascimento: '' }), {});
-});
-
-test('data de nascimento incompleta, impossível ou futura é rejeitada', () => {
-  assert.equal(
-    validarDadosPerfil({ ...VALIDO, dataNascimento: '25/12' }).dataNascimento,
-    'Informe a data completa (dd/mm/aaaa).'
+test('telefones vazios são aceitos; conteúdo inválido é rejeitado', () => {
+  assert.deepEqual(validarDadosPerfil({ ...VALIDO, telefone: '' }), {});
+  assert.deepEqual(
+    validarDadosPerfil({ ...VALIDO, contatoEmergenciaTelefone: '' }),
+    {}
   );
   assert.equal(
-    validarDadosPerfil({ ...VALIDO, dataNascimento: '31/02/1990' }).dataNascimento,
-    'Data de nascimento inválida.'
+    validarDadosPerfil({ ...VALIDO, telefone: 'abc' }).telefone,
+    'Informe um telefone válido.'
   );
   assert.equal(
-    validarDadosPerfil({ ...VALIDO, dataNascimento: '01/01/2999' }).dataNascimento,
-    'A data de nascimento não pode estar no futuro.'
+    validarDadosPerfil({ ...VALIDO, contatoEmergenciaTelefone: 'call-me' })
+      .contatoEmergenciaTelefone,
+    'Informe um telefone válido.'
+  );
+});
+
+test('telefone acima de 30 caracteres é rejeitado nos dois campos', () => {
+  const longo = '+1 (555) 123-456789012345678901234567';
+  assert.ok(longo.length > 30);
+  assert.equal(
+    validarDadosPerfil({ ...VALIDO, telefone: longo }).telefone,
+    'O telefone deve ter no máximo 30 caracteres.'
+  );
+  assert.equal(
+    validarDadosPerfil({ ...VALIDO, contatoEmergenciaTelefone: longo })
+      .contatoEmergenciaTelefone,
+    'O telefone deve ter no máximo 30 caracteres.'
+  );
+});
+
+test('campos de texto respeitam os limites do backend', () => {
+  assert.equal(
+    validarDadosPerfil({ ...VALIDO, logradouro: 'x'.repeat(151) }).logradouro,
+    'O campo deve ter no máximo 150 caracteres.'
+  );
+  assert.equal(
+    validarDadosPerfil({ ...VALIDO, numero: 'x'.repeat(21) }).numero,
+    'O campo deve ter no máximo 20 caracteres.'
+  );
+  assert.equal(
+    validarDadosPerfil({ ...VALIDO, complemento: 'x'.repeat(61) }).complemento,
+    'O campo deve ter no máximo 60 caracteres.'
+  );
+  assert.equal(
+    validarDadosPerfil({ ...VALIDO, bairro: 'x'.repeat(101) }).bairro,
+    'O campo deve ter no máximo 100 caracteres.'
+  );
+  assert.equal(
+    validarDadosPerfil({ ...VALIDO, contatoEmergenciaNome: 'x'.repeat(151) })
+      .contatoEmergenciaNome,
+    'O campo deve ter no máximo 150 caracteres.'
+  );
+  // Nos limites exatos continua aceito.
+  assert.deepEqual(
+    validarDadosPerfil({
+      ...VALIDO,
+      logradouro: 'x'.repeat(150),
+      numero: 'x'.repeat(20),
+      complemento: 'x'.repeat(60),
+      bairro: 'x'.repeat(100),
+      contatoEmergenciaNome: 'x'.repeat(150),
+    }),
+    {}
   );
 });
 
 test('erros de campos diferentes são reportados em conjunto', () => {
   const erros = validarDadosPerfil({
-    nome: '',
     email: 'invalido',
-    telefone: '',
-    cpf: '111.111.111-11',
-    dataNascimento: '01/01/2999',
+    telefone: 'abc',
+    cep: '123',
+    logradouro: 'x'.repeat(151),
+    numero: '',
+    complemento: '',
+    bairro: '',
+    contatoEmergenciaNome: '',
+    contatoEmergenciaTelefone: 'call-me',
   });
-  assert.ok(erros.nome);
   assert.ok(erros.email);
-  assert.ok(erros.cpf);
-  assert.ok(erros.dataNascimento);
-  assert.equal(erros.telefone, undefined);
+  assert.ok(erros.telefone);
+  assert.ok(erros.cep);
+  assert.ok(erros.logradouro);
+  assert.ok(erros.contatoEmergenciaTelefone);
+  // Opcionais vazios não geram erro.
+  assert.equal(erros.numero, undefined);
+  assert.equal(erros.complemento, undefined);
+  assert.equal(erros.bairro, undefined);
+  assert.equal(erros.contatoEmergenciaNome, undefined);
 });

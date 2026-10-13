@@ -1,33 +1,43 @@
 /**
- * Regras de edição dos dados pessoais da tela /aluno/Perfil.
+ * Regras de edição do PERFIL do aluno (contato, endereço e emergência).
  *
  * Módulo puro (sem React, sem rede) para que as validações possam ser
  * testadas pelo `node --test` do projeto. O backend é a fonte de verdade:
  * aqui existe só a validação local, que dá retorno rápido ao aluno — o
- * servidor valida tudo de novo, inclusive duplicidade de CPF/e-mail.
+ * servidor valida tudo de novo, inclusive duplicidade de e-mail.
  *
- * Nada aqui constrói `Date` a partir da data do aluno: a conversão ISO usa
- * string montada a partir das partes, evitando deslocar o dia por causa de
- * timezone.
+ * Nome, CPF, data de nascimento e sexo NÃO aparecem aqui: são campos
+ * protegidos (somente leitura; correção pela recepção) e não existem no
+ * DTO de edição do backend.
  */
-import { validarCPF } from './cpf.ts';
 
 /** Erros por campo devolvidos pela validação local. */
 export type ErrosEdicaoPerfil = {
-  nome?: string;
   email?: string;
   telefone?: string;
-  cpf?: string;
-  dataNascimento?: string;
+  cep?: string;
+  logradouro?: string;
+  numero?: string;
+  complemento?: string;
+  bairro?: string;
+  contatoEmergenciaNome?: string;
+  contatoEmergenciaTelefone?: string;
 };
 
-/** Dados crus do formulário de edição. */
+/**
+ * Dados crus do formulário de edição (mesmos campos de
+ * `DadosEdicaoPerfil`, porém sempre como string — é o que o TextInput guarda).
+ */
 export type EntradaEdicaoPerfil = {
-  nome: string;
   email: string;
   telefone: string;
-  cpf: string;
-  dataNascimento: string;
+  cep: string;
+  logradouro: string;
+  numero: string;
+  complemento: string;
+  bairro: string;
+  contatoEmergenciaNome: string;
+  contatoEmergenciaTelefone: string;
 };
 
 /**
@@ -46,99 +56,86 @@ export function mascaraTelefone(valor: string): string {
 }
 
 /**
- * Máscara de data `dd/mm/aaaa` aplicada enquanto o aluno digita
- * (o mesmo mecanismo adotado em `app/admin/cadastro-manutencao.tsx`).
+ * Máscara de CEP `00000-000` aplicada enquanto o aluno digita (até 8 dígitos).
+ * Idempotente, como a de telefone.
  */
-export function mascaraDataNascimento(valor: string): string {
+export function mascaraCep(valor: string): string {
   const d = valor.replace(/\D/g, '').slice(0, 8);
-  if (d.length <= 2) return d;
-  if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`;
-  return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
+  if (d.length <= 5) return d;
+  return `${d.slice(0, 5)}-${d.slice(5)}`;
 }
 
-/**
- * Converte `dd/mm/aaaa` para o ISO `AAAA-MM-DD` esperado pela API.
- * Devolve `null` quando a data está incompleta ou não existe no calendário
- * (ex.: 31/02). A string ISO é montada a partir das partes digitadas —
- * sem passar por `Date` — para preservar dia/mês/ano com segurança.
- */
-export function dataNascimentoParaIso(valor: string): string | null {
-  const m = valor.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (!m) return null;
-  const [, dia, mes, ano] = m;
-  const d = Number(dia);
-  const mm = Number(mes);
-  const a = Number(ano);
-  if (mm < 1 || mm > 12 || d < 1) return null;
-  // Dias do mês com suporte a bissexto, sem criar objeto Date.
-  const diasNoMes = [31, a % 4 === 0 && (a % 100 !== 0 || a % 400 === 0) ? 29 : 28,
-    31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  if (d > diasNoMes[mm - 1]) return null;
-  return `${ano}-${mes}-${dia}`;
+/** Limites por campo (espelham `AlunoAcessoService` no backend). */
+const LIMITES = {
+  logradouro: 150,
+  numero: 20,
+  complemento: 60,
+  bairro: 100,
+  contatoEmergenciaNome: 150,
+} as const;
+
+/** Telefone: até 30 caracteres, só dígitos, espaços, `+ ( ) -`. */
+const TELEFONE = /^[+()\-\s\d]+$/;
+
+function validarTelefoneLocal(
+  valor: string,
+  chave: 'telefone' | 'contatoEmergenciaTelefone',
+  erros: ErrosEdicaoPerfil,
+): void {
+  const texto = valor.trim();
+  if (!texto) return; // vazio = limpar campo (opcional)
+  if (texto.length > 30) {
+    erros[chave] = 'O telefone deve ter no máximo 30 caracteres.';
+  } else if (!TELEFONE.test(texto)) {
+    erros[chave] = 'Informe um telefone válido.';
+  }
 }
 
-/**
- * Converte o ISO `AAAA-MM-DD` (formato do backend) para `dd/mm/aaaa` exibido.
- * Devolve string vazia quando ausente ou fora do formato.
- */
-export function isoParaMascaraData(iso?: string | null): string {
-  if (!iso) return '';
-  const m = iso.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return '';
-  const [, ano, mes, dia] = m;
-  return `${dia}/${mes}/${ano}`;
-}
-
-/**
- * Indica se a data ISO está no futuro. A comparação é feita por string contra
- * a data local de hoje (montada por partes), sem converter a data do aluno
- * para `Date` — assim não há risco de deslocamento de fuso.
- */
-export function dataNascimentoNoFuturo(iso: string): boolean {
-  const hoje = new Date();
-  const hojeIso = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(
-    hoje.getDate(),
-  ).padStart(2, '0')}`;
-  return iso > hojeIso;
+function validarTextoLocal(
+  valor: string,
+  chave: 'logradouro' | 'numero' | 'complemento' | 'bairro' | 'contatoEmergenciaNome',
+  erros: ErrosEdicaoPerfil,
+): void {
+  const max = LIMITES[chave];
+  if (valor.trim().length > max) {
+    erros[chave] = `O campo deve ter no máximo ${max} caracteres.`;
+  }
 }
 
 /**
  * Valida localmente os campos editáveis do perfil.
- * Regras espelhadas do backend: nome obrigatório (máx. 150), e-mail
- * obrigatório e com formato válido, CPF com 11 dígitos e dígitos verificadores
- * corretos (quando preenchido) e data de nascimento real e não futura
- * (quando preenchida). CPF/nascimento vazios são aceitos: significam manter o
- * valor atual — o backend não apaga dado ausente.
+ *
+ * Regras espelhadas do backend: e-mail obrigatório, com formato válido e
+ * até 150 caracteres; CEP, quando preenchido, com exatamente 8 dígitos;
+ * telefones até 30 caracteres no padrão `+ ( ) - dígitos`; e os campos de
+ * texto nos limites de tamanho. Vazio nos campos opcionais significa limpar
+ * no servidor (null/ausente mantém o valor atual).
  */
 export function validarDadosPerfil(entrada: EntradaEdicaoPerfil): ErrosEdicaoPerfil {
   const erros: ErrosEdicaoPerfil = {};
 
-  const nome = entrada.nome.trim();
-  if (!nome) erros.nome = 'Informe o nome.';
-  else if (nome.length > 150) erros.nome = 'O nome deve ter no máximo 150 caracteres.';
-
   const email = entrada.email.trim();
   if (!email) erros.email = 'Informe o e-mail.';
+  else if (email.length > 150) erros.email = 'O e-mail deve ter no máximo 150 caracteres.';
   else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) erros.email = 'Informe um e-mail válido.';
 
-  const cpf = entrada.cpf.trim();
-  if (cpf) {
-    const digitos = cpf.replace(/\D/g, '');
-    if (digitos.length !== 11) erros.cpf = 'Informe um CPF com 11 dígitos.';
-    else if (!validarCPF(cpf)) erros.cpf = 'CPF inválido. Confira os números.';
+  const cep = entrada.cep.trim();
+  if (cep && cep.replace(/\D/g, '').length !== 8) {
+    erros.cep = 'Informe um CEP com 8 dígitos.';
   }
 
-  const nascimento = entrada.dataNascimento.trim();
-  if (nascimento) {
-    if (!/^\d{2}\/\d{2}\/\d{4}$/.test(nascimento)) {
-      erros.dataNascimento = 'Informe a data completa (dd/mm/aaaa).';
-    } else {
-      const iso = dataNascimentoParaIso(nascimento);
-      if (!iso) erros.dataNascimento = 'Data de nascimento inválida.';
-      else if (dataNascimentoNoFuturo(iso))
-        erros.dataNascimento = 'A data de nascimento não pode estar no futuro.';
-    }
-  }
+  validarTelefoneLocal(entrada.telefone, 'telefone', erros);
+  validarTelefoneLocal(
+    entrada.contatoEmergenciaTelefone,
+    'contatoEmergenciaTelefone',
+    erros,
+  );
+
+  validarTextoLocal(entrada.logradouro, 'logradouro', erros);
+  validarTextoLocal(entrada.numero, 'numero', erros);
+  validarTextoLocal(entrada.complemento, 'complemento', erros);
+  validarTextoLocal(entrada.bairro, 'bairro', erros);
+  validarTextoLocal(entrada.contatoEmergenciaNome, 'contatoEmergenciaNome', erros);
 
   return erros;
 }

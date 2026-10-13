@@ -108,6 +108,15 @@ export function criarLoginStyles(CORES: TemaCores) {
     fontSize: 15,
     letterSpacing: 0.5,
   },
+  buttonSecundario: {
+    marginTop: 12,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: CORES.primaria,
+  },
+  buttonTextSecundario: {
+    color: CORES.primaria,
+  },
   footer: {
     textAlign: 'center',
     color: CORES.textoMuted,
